@@ -47,6 +47,7 @@ class FlyingToasters2014 : public SimpleRobot
 	};
 	//Sensors
 	Ultrasonic RangeFinder;
+	AnalogChannel Potentiometer;
 	//Actuators
 	RobotDrive myRobot; // robot drive system
 	Joystick Driver; //Logitech Game-pad
@@ -65,6 +66,7 @@ class FlyingToasters2014 : public SimpleRobot
 public:
 	FlyingToasters2014(void):
 		RangeFinder(1,2),
+		Potentiometer(2),
 		myRobot(1, 2),	
 		Driver(1),
 		Operator(2),
@@ -101,6 +103,7 @@ public:
 		
 		while (IsAutonomous() && IsEnabled()) {
 				if (RangeFinder.GetRangeInches() > 150)
+					ShiftersHigh.Set(true);
 					myRobot.TankDrive(0.75,0.75);	
 				if (RangeFinder.GetRangeInches() < 50)
 					myRobot.TankDrive(0.25,0.25);
@@ -114,13 +117,12 @@ public:
 						Wait(1.0);
 						PlungerOut.Set(true);
 						Wait(0.5);
+						PlungerIn.Set(true);
 					}
 				}
 				else
 					myRobot.TankDrive(0.0,0.0);
-			
-			
-			
+						
             /**
              * Do the image capture with the camera and apply the algorithm described above. This
              * sample will either get images from the camera or from an image file stored in the top
@@ -362,6 +364,15 @@ public:
 		return isHot;
 	}
 	
+	float voltageToAngle()
+	{
+		while(1)
+		{
+			float Angle;
+			Potentiometer.GetAverageVoltage();
+			return Angle;
+		}
+	}
 };
 
 START_ROBOT_CLASS(FlyingToasters2014);
