@@ -99,7 +99,7 @@ public:
 		ParticleFilterCriteria2 criteria[] = {
 				{IMAQ_MT_AREA, AREA_MINIMUM, 65535, false, false}
 		};												//Particle filter criteria, used to filter out small particles
-		// AxisCamera &camera = AxisCamera::GetInstance();	//To use the Axis camera uncomment this line
+		 AxisCamera &camera = AxisCamera::GetInstance();	//To use the Axis camera uncomment this line
 		
 		while (IsAutonomous() && IsEnabled()) {
 				if (RangeFinder.GetRangeInches() > 150)
@@ -129,9 +129,9 @@ public:
              * level directory in the flash memory on the cRIO. The file name in this case is "testImage.jpg"
              */
 			ColorImage *image;
-			image = new RGBImage("/testImage.jpg");		// get the sample image from the cRIO flash
+			//image = new RGBImage("/testImage.jpg");		// get the sample image from the cRIO flash
 
-			//image = camera.GetImage();				//To get the images from the camera comment the line above and uncomment this one
+			image = camera.GetImage();				//To get the images from the camera comment the line above and uncomment this one
 			BinaryImage *thresholdImage = image->ThresholdHSV(threshold);	// get just the green target pixels
 			//thresholdImage->Write("/threshold.bmp");
 			BinaryImage *filteredImage = thresholdImage->ParticleFilter(criteria, 1);	//Remove small particles
