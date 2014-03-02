@@ -6,9 +6,9 @@
 
 //Camera constants used for distance calculation
 #define Y_IMAGE_RES 480		//X Image resolution in pixels, should be 120, 240 or 480
-//#define VIEW_ANGLE 49		//Axis M1013
+#define VIEW_ANGLE 49		//Axis M1013
 //#define VIEW_ANGLE 41.7		//Axis 206 camera
-#define VIEW_ANGLE 37.4  //Axis M1011 camera
+//#define VIEW_ANGLE 37.4  //Axis M1011 camera
 #define PI 3.141592653
 
 //Score limits used for target identification
@@ -46,7 +46,7 @@ class FlyingToasters2014 : public SimpleRobot
 		double verticalScore;
 	};
 	//Sensors
-	AnalogChannel RangeFinder;
+	Ultrasonic RangeFinder;
 	AnalogChannel Potentiometer;
 	//Actuators
 	RobotDrive myRobot; // robot drive system
@@ -61,11 +61,11 @@ class FlyingToasters2014 : public SimpleRobot
 	Solenoid ClawIn;
 	Solenoid ClawOut;
 	Compressor c;
-
+	
 
 public:
 	FlyingToasters2014(void):
-		RangeFinder(1),
+		RangeFinder(1,2),
 		Potentiometer(2),
 		myRobot(1, 2),	
 		Driver(1),
@@ -90,8 +90,6 @@ public:
 	 */
 	void Autonomous(void)
 	{
-		double range = RangeFinder.GetAverageVoltage()/0.0248158; //range is in inches
-		DriverStationLCD *ds = DriverStationLCD::GetInstance();
 		Scores *scores;
 		TargetReport target;
 		int verticalTargets[MAX_PARTICLES];
@@ -101,22 +99,43 @@ public:
 		ParticleFilterCriteria2 criteria[] = {
 				{IMAQ_MT_AREA, AREA_MINIMUM, 65535, false, false}
 		};												//Particle filter criteria, used to filter out small particles
-		AxisCamera &camera = AxisCamera::GetInstance();	//To use the Axis camera uncomment this line
+		 AxisCamera &camera = AxisCamera::GetInstance();	//To use the Axis camera uncomment this line
 		
-		while (IsAutonomous() && IsEnabled()) {	
-			ds->PrintfLine(DriverStationLCD::kMain_Line6, "Auton Started");
+		while (IsAutonomous() && IsEnabled()) {
+				if (RangeFinder.GetRangeInches() > 150)
+					ShiftersHigh.Set(true);
+					myRobot.TankDrive(0.75,0.75);	
+				if (RangeFinder.GetRangeInches() < 50)
+					myRobot.TankDrive(0.25,0.25);
+				if (RangeFinder.GetRangeInches() < 40)
+				{
+					myRobot.TankDrive(0.0,0.0);
+					Wait(0.5);
+					if (target.Hot)
+					{
+						Launcher.Set(1.0);
+						Wait(1.0);
+						PlungerOut.Set(true);
+						Wait(0.5);
+						PlungerIn.Set(true);
+					}
+				}
+				else
+					myRobot.TankDrive(0.0,0.0);
+						
             /**
              * Do the image capture with the camera and apply the algorithm described above. This
              * sample will either get images from the camera or from an image file stored in the top
              * level directory in the flash memory on the cRIO. The file name in this case is "testImage.jpg"
              */
 			ColorImage *image;
-			//image = new RGBImage("/testImage.jpg");
+			//image = new RGBImage("/testImage.jpg");		// get the sample image from the cRIO flash
+
 			image = camera.GetImage();				//To get the images from the camera comment the line above and uncomment this one
 			BinaryImage *thresholdImage = image->ThresholdHSV(threshold);	// get just the green target pixels
-			thresholdImage->Write("/threshold.bmp");
+			//thresholdImage->Write("/threshold.bmp");
 			BinaryImage *filteredImage = thresholdImage->ParticleFilter(criteria, 1);	//Remove small particles
-			filteredImage->Write("Filtered.bmp");
+			//filteredImage->Write("Filtered.bmp");
 
 			vector<ParticleAnalysisReport> *reports = filteredImage->GetOrderedParticleAnalysisReports();  //get a particle analysis report for each particle
 
@@ -200,15 +219,14 @@ public:
 					double distance = computeDistance(filteredImage, distanceReport);
 					if(target.Hot)
 					{
-						ds->PrintfLine(DriverStationLCD::kUser_Line2, "Hot goal found ");
+						printf("Hot target located \n");
 						printf("Distance: %f \n", distance);
 					} else {
-						ds->PrintfLine(DriverStationLCD::kUser_Line3,"No hot target present ");
-						ds->PrintfLine(DriverStationLCD::kUser_Line4,"Distance: %f \n", distance);
+						printf("No hot target present \n");
+						printf("Distance: %f \n", distance);
 					}
 				}
-				
-				}
+			}
 
 			// be sure to delete images after using them
 			delete filteredImage;
@@ -218,31 +236,7 @@ public:
 			//delete allocated reports and Scores objects also
 			delete scores;
 			delete reports;
-			ds->UpdateLCD();
-			if (range >= 75)
-			{
-				myRobot.TankDrive(0.5, 0.5);
-			}
-			if (range < 75 && range > 28)
-			{
-				myRobot.TankDrive(0.25, 0.25);
-			}
-			if (range <= 28)
-			{
-				myRobot.TankDrive(0.0, 0.0);
-				Launcher.Set(1.0);
-				Wait(1.0);
-				PlungerOut.Set(true);
-				Wait(1.5);
-				PlungerOut.Set(false);
-				PlungerIn.Set(true);
-			}
-			else
-			{
-				myRobot.TankDrive(0.0,0.0);
-			}
 		}
-			
 	}
 
 	/**
@@ -250,47 +244,11 @@ public:
 	 */
 	void OperatorControl(void)
 	{
-		double range = RangeFinder.GetAverageVoltage()/0.0248158;
 		myRobot.SetSafetyEnabled(true);
 		while (IsOperatorControl())
 		{
-			myRobot.TankDrive(Driver.GetRawAxis(2),Driver.GetRawAxis(4)); //Tank Drive contol for chassis
+			myRobot.TankDrive(2,4); //Tank Drive contol for chassis
 			Wait(0.005);				// wait for a motor update time
-			
-			//Arm control
-			if (Potentiometer.GetAverageVoltage() >= 4.5 && Operator.GetRawAxis(1) > 0.0)
-			{
-				Arm.Set(0.0);
-			}
-			if (Potentiometer.GetAverageVoltage() <= 1 && Operator.GetRawAxis(1) < 0.0)
-			{
-				Arm.Set(0.0);
-			}
-			if (Potentiometer.GetAverageVoltage() < 2.75 && Operator.GetRawButton(3) == true)
-			{
-				Arm.Set(-0.75);
-			}
-			if (Potentiometer.GetAverageVoltage() > 2.25 && Operator.GetRawButton(3) == true)
-			{
-				Arm.Set(0.75);
-			}
-			else
-			{
-				Arm.Set(Operator.GetRawAxis(1));
-			}
-			Wait(0.005);
-			
-			//Plunger control
-			if (Operator.GetRawButton(1) == true)
-			{
-				PlungerOut.Set(true);
-				Wait(1.0);
-				PlungerIn.Set(true);
-			}
-			else if (Operator.GetRawButton(1) != true)
-			{
-				PlungerIn.Set(true);
-			}
 		}
 	}
 	
@@ -406,6 +364,15 @@ public:
 		return isHot;
 	}
 	
+	float voltageToAngle()
+	{
+		while(1)
+		{
+			float Angle;
+			Potentiometer.GetAverageVoltage();
+			return Angle;
+		}
+	}
 };
 
 START_ROBOT_CLASS(FlyingToasters2014);
